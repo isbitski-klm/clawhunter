@@ -2,7 +2,7 @@
 
 **Attacker-first static code analysis with a falsification engine.** Adapted from Capital One's [VulnHunter](https://github.com/capitalone/vulnhunter) for the OpenClaw ecosystem.
 
-Unlike traditional SAST scanners that flag suspicious patterns and flood teams with false positives, ClawHunter reasons through data flows: it identifies which issues are actually exploitable, maps prospective attack paths, and proposes targeted, evidence-backed fixes.
+Unlike traditional code analysis tools that flag suspicious patterns and flood teams with false positives, ClawHunter reasons through data flows: it identifies which issues are actually exploitable, maps prospective attack paths, and proposes targeted, evidence-backed fixes.
 
 ## ⚠️ Cyber-Safeguard Disclaimer
 
