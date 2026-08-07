@@ -6,7 +6,25 @@ Unlike traditional code analysis tools that flag suspicious patterns and flood t
 
 ## ⚠️ Cyber-Safeguard Disclaimer
 
-ClawHunter performs dual-use cybersecurity work (vulnerability discovery and exploitation analysis). If you run it against an Anthropic account that is not enrolled in Anthropic's [Cyber Verification Program](https://support.claude.com/en/articles/14604842-real-time-cyber-safeguards-on-claude), real-time cyber safeguards may block requests and your usage may be flagged for cyber abuse. If you intend to use ClawHunter on Anthropic's first-party platforms (Claude API / Claude Code), we strongly recommend enrolling first via the [verification portal](https://portal.anthropic.com/programs/cvp).
+ClawHunter performs dual-use cybersecurity work — vulnerability discovery and exploitation analysis. This means it can trigger safety mechanisms at multiple layers, not just from the LLM provider but also from the platform running it.
+
+### What can trigger safeguards
+
+**LLM providers.** Frontier model providers (Anthropic, OpenAI, xAI, etc.) have increasingly aggressive real-time cyber guardrails. ClawHunter's prompts contain attacker-first reasoning patterns — data-flow tracing toward dangerous sinks, falsification of security controls, exploitability assessment — that may be flagged as potentially malicious even when used for legitimate security auditing. If you run it against an Anthropic account not enrolled in their [Cyber Verification Program](https://support.claude.com/en/articles/14604842-real-time-cyber-safeguards-on-claude), requests may be blocked and your usage flagged for abuse review.
+
+**OpenClaw.** OpenClaw itself has safety layers that monitor agent behavior. Because ClawHunter instructs the model to reason about exploitability, trace attack paths, and propose fixes for real vulnerabilities, it can trigger OpenClaw's own content filters or behavioral safeguards — especially in sessions with stricter moderation settings. You may see warnings, blocked tool calls, or session interruptions.
+
+**Your own infrastructure.** If ClawHunter is running in a CI/CD pipeline, shared workspace, or multi-user environment, the output (exploit traces, vulnerability reports) contains sensitive information about your codebase's security posture. Treat it like any other security audit artifact — restrict access, don't commit findings to public repos without redaction.
+
+### Proceed with caution
+
+- **Only scan codebases you are explicitly authorized to analyze.** This includes third-party dependencies only if you have permission from the owner or maintainer.
+- **Be aware of what you're testing.** ClawHunter doesn't just find bugs — it constructs plausible attack narratives. Understanding the methodology helps you interpret results correctly and avoid false confidence in either direction (over-reporting or under-reporting).
+- **Use read-only mode for untrusted code.** Bash-enabled mode installs dependencies and can execute proof-of-concept exploits. Never use this on codebases where you don't have explicit authorization to modify state.
+- **Follow responsible disclosure best practices.** If ClawHunter finds vulnerabilities in third-party software, report them through the maintainer's preferred channel (security.txt, vulnerability database, direct contact). Don't publish exploit details publicly without coordination.
+- **Enroll in provider verification programs if you plan heavy use.** Anthropic's [Cyber Verification Program](https://portal.anthropic.com/programs/cvp) is designed for exactly this kind of work. It reduces the chance of false-positive abuse flags and gives you access to stronger models optimized for security analysis.
+
+ClawHunter is a tool, not a verdict. The findings it produces are starting points for human review — not automated determinations of exploitability or risk.
 
 ## Origin & Attribution
 
