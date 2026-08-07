@@ -76,13 +76,13 @@ Use `--model` to override config for a single run:
 
 **OpenAI:** Set `OPENAI_API_KEY`. Supports o3 and other reasoning models.
 
-When a provider is enabled but its API key is missing, ClawHunt falls back to local with a warning — it never fails hard.
+When a provider is enabled but its API key is missing, ClawHunter falls back to local with a warning — it never fails hard.
 
 ### How External Routing Works
 
 When Phase 2 needs external inference:
-1. The main agent writes the hunt + falsification prompt to a temp file (`/tmp/clawhunt_phase2_prompt.md`)
-2. Runs `~/.openclaw/workspace/skills/clawhunt/scripts/external_llm.sh <provider> /tmp/clawhunt_phase2_prompt.md [model]`
+1. The main agent writes the hunt + falsification prompt to a temp file (`/tmp/clawhunter_phase2_prompt.md`)
+2. Runs `~/.openclaw/workspace/skills/clawhunter/scripts/external_llm.sh <provider> /tmp/clawhunter_phase2_prompt.md [model]`
 3. Reads the response back and continues the analysis workflow
 4. If the external call fails (network error, rate limit), falls back to local with a note
 

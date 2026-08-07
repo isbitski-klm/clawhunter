@@ -1,4 +1,4 @@
-# ClawHunt Sink Reference Patterns
+# ClawHunter Sink Reference Patterns
 
 ## SQL Injection Sinks
 - Python: `cursor.execute()`, `connection.query()`, f-string/concat in SQL

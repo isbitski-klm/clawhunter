@@ -21,7 +21,7 @@ Detailed usage instructions for ClawHunter, the attacker-first static code analy
 ### Scan Current Directory
 
 ```
-/clawhunt
+/clawhunter
 ```
 
 Scans the current working directory using read-only mode by default.
@@ -29,13 +29,13 @@ Scans the current working directory using read-only mode by default.
 ### Scan a Specific Path
 
 ```
-/clawhunt /path/to/repo
+/clawhunter /path/to/repo
 ```
 
 ### Full Command Syntax
 
 ```
-/clawhunt [target_path] [--mode read-only|bash-enabled] [--model local|grok|opus]
+/clawhunter [target_path] [--mode read-only|bash-enabled] [--model local|grok|opus]
 ```
 
 | Argument | Default | Description |
@@ -146,7 +146,7 @@ To permanently route Phase 2 through an external provider:
 
 3. Run ClawHunter normally — Phase 2 will automatically route through the configured provider:
    ```
-   /clawhunt
+   /clawhunter
    ```
 
 ### One-Time Override with --model Flag
@@ -154,9 +154,9 @@ To permanently route Phase 2 through an external provider:
 For a single scan without changing config:
 
 ```bash
-/clawhunt --model grok    # Use Grok for this run only
-/clawhunt --model opus    # Use Anthropic Opus for this run only
-/clawhunt --model local   # Force local (overrides any config setting)
+/clawhunter --model grok    # Use Grok for this run only
+/clawhunter --model opus    # Use Anthropic Opus for this run only
+/clawhunter --model local   # Force local (overrides any config setting)
 ```
 
 ### Fallback Behavior
@@ -223,13 +223,13 @@ For automated scanning in your pipeline:
 Example workflow:
 ```bash
 # 1. Clone target
-git clone https://github.com/org/target-repo.git /tmp/clawhunt-scan
+git clone https://github.com/org/target-repo.git /tmp/clawhunter-scan
 
 # 2. Run scan (via OpenClaw)
-openclaw session send "run clawhunt against /tmp/clawhunt-scan --mode read-only"
+openclaw session send "run clawhunter against /tmp/clawhunter-scan --mode read-only"
 
 # 3. Collect results
-cat /tmp/clawhunt-scan/clawhunt_results/clawhunter_report.md > report.md
+cat /tmp/clawhunter-scan/clawhunter_results/clawhunter_report.md > report.md
 
 # 4. Check for critical findings
 grep -c "Severity: Critical\|Severity: High" report.md || echo "No high-severity findings"

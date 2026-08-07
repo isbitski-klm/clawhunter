@@ -62,12 +62,12 @@ For each verified vulnerability, produces a structured report with:
 ### Run a Scan
 
 ```
-/clawhunt /path/to/repo --mode read-only
+/clawhunter /path/to/repo --mode read-only
 ```
 
 Or simply:
 ```
-/clawhunt
+/clawhunter
 ```
 
 This scans the current directory. Mode defaults to read-only unless you specify `--mode bash-enabled`.
@@ -133,9 +133,9 @@ There are cases where a stronger model genuinely helps:
 ### One-Time Override with `--model` Flag
 
 ```
-/clawhunt --model grok    # Route Phase 2 through Grok for this run only
-/clawhunt --model opus    # Route Phase 2 through Anthropic Opus
-/clawhunt --model local   # Force local (overrides config)
+/clawhunter --model grok    # Route Phase 2 through Grok for this run only
+/clawhunter --model opus    # Route Phase 2 through Anthropic Opus
+/clawhunter --model local   # Force local (overrides config)
 ```
 
 ### Setting Up a Provider
@@ -164,7 +164,7 @@ When a provider is enabled but its API key is missing, ClawHunter falls back to 
 ## File Structure
 
 ```
-clawhunt/
+clawhunter/
 ├── SKILL.md                    # Full skill definition (triggers, workflow, prompts)
 ├── README.md                   # This file
 ├── LICENSE                     # Apache 2.0
