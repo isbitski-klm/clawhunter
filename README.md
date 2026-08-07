@@ -195,7 +195,16 @@ All artifacts go into `${TARGET_DIR}/clawhunter_results/`:
 - Bash-enabled mode should only be used on trusted, first-party repositories
 - This tool performs dual-use cybersecurity work (vulnerability discovery)
 
+## Author
+
+**Michael Isbitski**
+
+- LinkedIn: [linkedin.com/in/michael-isbitski](https://www.linkedin.com/in/michael-isbitski/)
+- Website: [klminnovation.com](https://klminnovation.com)
+
+ClawHunter is maintained as an independent project to help practitioners find real vulnerabilities in their codebases using attacker-first reasoning.
+
 ## License
 
-Apache 2.0 — see [LICENSE](LICENSE) for details.  
+Apache 2.0 — see [LICENSE](LICENSE) for details.
 Adapted from Capital One's VulnHunter (also Apache 2.0).
