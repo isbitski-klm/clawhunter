@@ -1,21 +1,21 @@
-# ClawHunt
+# ClawHunter
 
 **Attacker-first static code analysis with a falsification engine.** Adapted from Capital One's [VulnHunter](https://github.com/capitalone/vulnhunter) for the OpenClaw ecosystem.
 
-Unlike traditional SAST scanners that flag suspicious patterns and flood teams with false positives, ClawHunt reasons through data flows: it identifies which issues are actually exploitable, maps prospective attack paths, and proposes targeted, evidence-backed fixes.
+Unlike traditional SAST scanners that flag suspicious patterns and flood teams with false positives, ClawHunter reasons through data flows: it identifies which issues are actually exploitable, maps prospective attack paths, and proposes targeted, evidence-backed fixes.
 
 ## ⚠️ Cyber-Safeguard Disclaimer
 
-ClawHunt performs dual-use cybersecurity work (vulnerability discovery and exploitation analysis). If you run it against an Anthropic account that is not enrolled in Anthropic's [Cyber Verification Program](https://support.claude.com/en/articles/14604842-real-time-cyber-safeguards-on-claude), real-time cyber safeguards may block requests and your usage may be flagged for cyber abuse. If you intend to use ClawHunt on Anthropic's first-party platforms (Claude API / Claude Code), we strongly recommend enrolling first via the [verification portal](https://portal.anthropic.com/programs/cvp).
+ClawHunter performs dual-use cybersecurity work (vulnerability discovery and exploitation analysis). If you run it against an Anthropic account that is not enrolled in Anthropic's [Cyber Verification Program](https://support.claude.com/en/articles/14604842-real-time-cyber-safeguards-on-claude), real-time cyber safeguards may block requests and your usage may be flagged for cyber abuse. If you intend to use ClawHunter on Anthropic's first-party platforms (Claude API / Claude Code), we strongly recommend enrolling first via the [verification portal](https://portal.anthropic.com/programs/cvp).
 
 ## Origin & Attribution
 
-ClawHunt is adapted from **Capital One's VulnHunter**, an open-source agentic AI security tool developed internally at Capital One and released to the community. The original methodology — attacker-first forward analysis with a falsification engine — was designed by Capital One's security team to address the fundamental flaw in traditional SAST: scanning for suspicious patterns backward from sinks, which floods teams with false positives.
+ClawHunter is adapted from **Capital One's VulnHunter**, an open-source agentic AI security tool developed internally at Capital One and released to the community. The original methodology — attacker-first forward analysis with a falsification engine — was designed by Capital One's security team to address the fundamental flaw in traditional SAST: scanning for suspicious patterns backward from sinks, which floods teams with false positives.
 
-VulnHunter runs as three composable [Claude Code](https://docs.claude.com/en/docs/claude-code) skills (`/vulnhunt`, `/vulnhunter-fix`, `/vulnhunt-fix-verify`). ClawHunt adapts the same methodology for OpenClaw, replacing Claude Code-specific plumbing with OpenClaw primitives (sub-agents, tool dispatch, structured prompts).
+VulnHunter runs as three composable [Claude Code](https://docs.claude.com/en/docs/claude-code) skills (`/vulnhunt`, `/vulnhunter-fix`, `/vulnhunt-fix-verify`). ClawHunter adapts the same methodology for OpenClaw, replacing Claude Code-specific plumbing with OpenClaw primitives (sub-agents, tool dispatch, structured prompts).
 
 **Original:** [capitalone/vulnhunter](https://github.com/capitalone/vulnhunter) — Apache 2.0  
-**Adaptation:** ClawHunt for OpenClaw — Apache 2.0
+**Adaptation:** ClawHunter for OpenClaw — Apache 2.0
 
 ## How It Works: The Three Phases
 
@@ -41,7 +41,7 @@ For each entry point identified in Phase 1, the main agent traces forward throug
 
 Then runs the **Falsification Engine** — actively tries to disprove each candidate finding by checking for input validation, auth checks, scope enforcement, output encoding, and security controls. Only findings that survive falsification are reported.
 
-**This is where a stronger model matters most.** Phase 2 requires holding complex data-flow chains in context while actively trying to disprove them — the kind of deep reasoning where frontier models (Opus, Grok, o3) outperform smaller ones. This is why ClawHunt supports offloading Phase 2 to external LLM APIs.
+**This is where a stronger model matters most.** Phase 2 requires holding complex data-flow chains in context while actively trying to disprove them — the kind of deep reasoning where frontier models (Opus, Grok, o3) outperform smaller ones. This is why ClawHunter supports offloading Phase 2 to external LLM APIs.
 
 ### Phase 3: Report Findings
 
@@ -74,7 +74,7 @@ This scans the current directory. Mode defaults to read-only unless you specify 
 
 ### Default Behavior: Local Analysis
 
-ClawHunt runs by default using whatever LLM OpenClaw is configured with — no external API keys needed, no extra cost. This is intentional and recommended for most use cases:
+ClawHunter runs by default using whatever LLM OpenClaw is configured with — no external API keys needed, no extra cost. This is intentional and recommended for most use cases:
 
 - **Local models like Qwen 35B are sufficient** for many real-world codebases. The methodology (attacker-first analysis + falsification) is a reasoning framework, not a model-specific trick. A well-structured prompt with a capable local model will find genuine vulnerabilities in typical web applications, CLIs, and services.
 - **Zero marginal cost.** No API calls, no per-token charges. You can scan multiple repos or iterate on findings without worrying about bill shock.
@@ -95,7 +95,7 @@ There are cases where a stronger model genuinely helps:
 
 ## External API Configuration
 
-### Config File: `~/.openclaw/workspace/config/clawhunt.json`
+### Config File: `~/.openclaw/workspace/config/clawhunter.json`
 
 ```json
 {
@@ -159,7 +159,7 @@ There are cases where a stronger model genuinely helps:
    "phase2_model": "grok"
    ```
 
-When a provider is enabled but its API key is missing, ClawHunt falls back to local with a warning — it never fails hard.
+When a provider is enabled but its API key is missing, ClawHunter falls back to local with a warning — it never fails hard.
 
 ## File Structure
 
@@ -176,9 +176,9 @@ clawhunt/
 
 ## Output Files
 
-All artifacts go into `${TARGET_DIR}/clawhunt_results/`:
-- `clawhunt_recon.md` — Reconnaissance output (partition table, input/sink inventories)
-- `clawhunt_report.md` — Final vulnerability report with all verified findings
+All artifacts go into `${TARGET_DIR}/clawhunter_results/`:
+- `clawhunter_recon.md` — Reconnaissance output (partition table, input/sink inventories)
+- `clawhunter_report.md` — Final vulnerability report with all verified findings
 
 ## Operating Principles
 

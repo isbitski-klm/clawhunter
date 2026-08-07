@@ -5,7 +5,7 @@
 #   prompt_file: path to file containing the prompt text
 #   model_override: optional model name (uses config default if omitted)
 #
-# Reads API key from environment variable specified in clawhunt.json.
+# Reads API key from environment variable specified in clawhunter.json.
 # Outputs the LLM response to stdout.
 # Returns exit code 1 if provider is unavailable or key missing.
 
@@ -26,14 +26,14 @@ if [[ ! -f "$PROMPT_FILE" ]]; then
 fi
 
 CONFIG_DIR="$HOME/.openclaw/workspace/config"
-CONFIG_FILE="$CONFIG_DIR/clawhunt.json"
+CONFIG_FILE="$CONFIG_DIR/clawhunter.json"
 
 if [[ ! -f "$CONFIG_FILE" ]]; then
     echo "Error: config not found at $CONFIG_FILE" >&2
     exit 1
 fi
 
-# Read provider config from clawhunt.json using python3 (no jq dependency)
+# Read provider config from clawhunter.json using python3 (no jq dependency)
 read_provider_config() {
     local key="$1"
     python3 -c "

@@ -1,7 +1,7 @@
 # Generated output from scans
-clawhunt_results/
-clawhunt_recon.md
-clawhunt_report.md
+clawhunter_results/
+clawhunter_recon.md
+clawhunter_report.md
 
 # Temp files
 /tmp/clawhunt_*

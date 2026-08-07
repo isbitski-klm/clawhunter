@@ -1,6 +1,6 @@
-# ClawHunt — Usage Guide
+# ClawHunter — Usage Guide
 
-Detailed usage instructions for ClawHunt, the attacker-first static code analysis skill adapted from Capital One's VulnHunter.
+Detailed usage instructions for ClawHunter, the attacker-first static code analysis skill adapted from Capital One's VulnHunter.
 
 ## Table of Contents
 
@@ -67,7 +67,7 @@ Installs dependencies and runs exploit tests against identified vulnerabilities.
 
 ### Why Offload Phase 2?
 
-ClawHunt's three-phase workflow has different reasoning requirements:
+ClawHunter's three-phase workflow has different reasoning requirements:
 
 | Phase | Reasoning Load | Local Model OK? |
 |-------|---------------|-----------------|
@@ -85,7 +85,7 @@ Smaller models like Qwen 35B handle straightforward cases well. But for complex 
 
 ### Configuring Providers
 
-Edit `~/.openclaw/workspace/config/clawhunt.json`:
+Edit `~/.openclaw/workspace/config/clawhunter.json`:
 
 ```json
 {
@@ -144,7 +144,7 @@ To permanently route Phase 2 through an external provider:
    }
    ```
 
-3. Run ClawHunt normally — Phase 2 will automatically route through the configured provider:
+3. Run ClawHunter normally — Phase 2 will automatically route through the configured provider:
    ```
    /clawhunt
    ```
@@ -161,20 +161,20 @@ For a single scan without changing config:
 
 ### Fallback Behavior
 
-If the external API call fails (network error, rate limit, invalid key), ClawHunt automatically falls back to local analysis with a warning message. It never aborts the scan entirely.
+If the external API call fails (network error, rate limit, invalid key), ClawHunter automatically falls back to local analysis with a warning message. It never aborts the scan entirely.
 
 ## Understanding the Output
 
-All output files are written to `${TARGET_DIR}/clawhunt_results/`:
+All output files are written to `${TARGET_DIR}/clawhunter_results/`:
 
-### `clawhunt_recon.md` — Reconnaissance Report
+### `clawhunter_recon.md` — Reconnaissance Report
 
 Contains:
 - **Partition Table** — Groups apps/modules by entry point and sink counts
 - **Input Inventory** — Every place external data enters the codebase
 - **Sink Inventory** — All dangerous API calls found in the codebase
 
-### `clawhunt_report.md` — Final Vulnerability Report
+### `clawhunter_report.md` — Final Vulnerability Report
 
 For each verified finding:
 
@@ -216,8 +216,8 @@ An attacker can extract all user records, bypass authentication, or potentially 
 For automated scanning in your pipeline:
 
 1. Clone the target repo to a temp directory
-2. Run ClawHunt against it (via OpenClaw CLI or API)
-3. Collect `${TARGET_DIR}/clawhunt_results/clawhunt_report.md`
+2. Run ClawHunter against it (via OpenClaw CLI or API)
+3. Collect `${TARGET_DIR}/clawhunter_results/clawhunter_report.md`
 4. Parse findings and file issues / block merges on Critical/High results
 
 Example workflow:
@@ -229,7 +229,7 @@ git clone https://github.com/org/target-repo.git /tmp/clawhunt-scan
 openclaw session send "run clawhunt against /tmp/clawhunt-scan --mode read-only"
 
 # 3. Collect results
-cat /tmp/clawhunt-scan/clawhunt_results/clawhunt_report.md > report.md
+cat /tmp/clawhunt-scan/clawhunt_results/clawhunter_report.md > report.md
 
 # 4. Check for critical findings
 grep -c "Severity: Critical\|Severity: High" report.md || echo "No high-severity findings"

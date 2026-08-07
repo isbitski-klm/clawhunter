@@ -1,31 +1,31 @@
 ---
-name: clawhunt
+name: clawhunter
 description: >
   Attacker-first static code analysis with falsification engine and pluggable LLM backend.
 ---
 
-# ClawHunt — Attacker-First Static Code Analysis
+# ClawHunter — Attacker-First Static Code Analysis
 
 ## Overview
 
-A structured static analysis workflow that applies proactive, attacker-first reasoning to source code. Unlike traditional pattern-matching scanners that flag suspicious constructs and flood teams with false positives, ClawHunt reasons through data flows: it identifies which issues are actually exploitable, maps prospective attack paths, and proposes targeted, evidence-backed fixes.
+A structured static analysis workflow that applies proactive, attacker-first reasoning to source code. Unlike traditional pattern-matching scanners that flag suspicious constructs and flood teams with false positives, ClawHunter reasons through data flows: it identifies which issues are actually exploitable, maps prospective attack paths, and proposes targeted, evidence-backed fixes.
 
 **Adapted from Capital One's VulnHunter** (Apache 2.0). The methodology is identical — attacker-first forward analysis, falsification engine, evidence-backed remediation — but the implementation uses OpenClaw primitives with a pluggable LLM backend.
 
 ## Trigger
 
 When invoked with any of these patterns:
-- `/clawhunt` or `clawhunt`
+- `/clawhunter` or `clawhunter`
 - "scan this codebase for security vulnerabilities"
 - "do a security audit on [path]"
 - "find exploitable bugs in [repo]"
-- "run clawhunt against [target]"
+- "run clawhunter against [target]"
 
 ## Backend Configuration
 
-ClawHunt runs by default using whatever LLM OpenClaw is configured with (local or remote). You can optionally route specific phases through external API providers for stronger reasoning.
+ClawHunter runs by default using whatever LLM OpenClaw is configured with (local or remote). You can optionally route specific phases through external API providers for stronger reasoning.
 
-### Config File: `~/.openclaw/workspace/config/clawhunt.json`
+### Config File: `~/.openclaw/workspace/config/clawhunter.json`
 
 ```json
 {
@@ -64,9 +64,9 @@ ClawHunt runs by default using whatever LLM OpenClaw is configured with (local o
 ### CLI Flag Override
 
 Use `--model` to override config for a single run:
-- `/clawhunt --model grok` — route Phase 2 through Grok API
-- `/clawhunt --model opus` — route Phase 2 through Anthropic Opus
-- `/clawhunt --model local` — force local (overrides config)
+- `--clawhunter --model grok` — route Phase 2 through Grok API
+- `--clawhunter --model opus` — route Phase 2 through Anthropic Opus
+- `--clawhunter --model local` — force local (overrides config)
 
 ### Provider Setup
 
@@ -184,7 +184,7 @@ What to enumerate for each entry point:
 - Environment variables/config values an attacker could influence
 - Message queue/event consumer inputs
 
-Output format — write to ${TARGET_DIR}/clawhunt_recon.md:
+Output format — write to ${TARGET_DIR}/clawhunter_recon.md:
 
 ## Partition Table
 | Partition ID | App/Module | Entry Points (count) | Sinks (count) | Files |
@@ -257,7 +257,7 @@ For each verified vulnerability, produce a structured report:
 [What an attacker can do if this is exploited — data access, privilege escalation, RCE, etc.]
 ```
 
-Write full report to `${TARGET_DIR}/clawhunt_report.md`.
+Write full report to `${TARGET_DIR}/clawhunter_report.md`.
 
 ## Sink Reference (Common Patterns)
 
@@ -286,16 +286,16 @@ See `references/sink-patterns.md` for detailed sink patterns by language/framewo
 
 ## Output Files
 
-All artifacts go into `${TARGET_DIR}/clawhunt_results/` (create if needed):
-- `clawhunt_recon.md` — Reconnaissance output (partition table, input/sink inventories)
-- `clawhunt_report.md` — Final vulnerability report with all verified findings
+All artifacts go into `${TARGET_DIR}/clawhunter_results/` (create if needed):
+- `clawhunter_recon.md` — Reconnaissance output (partition table, input/sink inventories)
+- `clawhunter_report.md` — Final vulnerability report with all verified findings
 
 ## Automation Notes
 
 For batch scanning or CI/CD integration:
 1. Clone target repo to a temp directory
-2. Run `/clawhunt` against it
-3. Collect `${TARGET_DIR}/clawhunt_results/clawhunt_report.md`
+2. Run `/clawhunter` against it
+3. Collect `${TARGET_DIR}/clawhunter_results/clawhunter_report.md`
 4. File GitHub issues for confirmed Critical/High findings using `gh issue create`
 
 ## Security & Responsibility
