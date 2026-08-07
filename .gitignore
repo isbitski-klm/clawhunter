@@ -1,0 +1,10 @@
+# Generated output from scans
+clawhunt_results/
+clawhunt_recon.md
+clawhunt_report.md
+
+# Temp files
+/tmp/clawhunt_*
+
+# Config with potential API keys (keep the template, not the filled version)
+config/clawhunt.json
