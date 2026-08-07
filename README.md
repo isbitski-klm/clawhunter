@@ -10,7 +10,7 @@ ClawHunter performs dual-use cybersecurity work (vulnerability discovery and exp
 
 ## Origin & Attribution
 
-ClawHunter is adapted from **Capital One's VulnHunter**, an open-source agentic AI security tool developed internally at Capital One and released to the community. The original methodology — attacker-first forward analysis with a falsification engine — was designed by Capital One's security team to address the fundamental flaw in traditional SAST: scanning for suspicious patterns backward from sinks, which floods teams with false positives.
+ClawHunter is adapted from **Capital One's VulnHunter**, an open-source agentic AI security tool developed internally at Capital One and released to the community. The original methodology — attacker-first forward analysis with a falsification engine — was designed by Capital One's security team to address the fundamental flaw in traditional static analysis: scanning for suspicious patterns backward from sinks, which floods teams with false positives.
 
 VulnHunter runs as three composable [Claude Code](https://docs.claude.com/en/docs/claude-code) skills (`/vulnhunt`, `/vulnhunter-fix`, `/vulnhunt-fix-verify`). ClawHunter adapts the same methodology for OpenClaw, replacing Claude Code-specific plumbing with OpenClaw primitives (sub-agents, tool dispatch, structured prompts).
 
