@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# external_llm.sh — Route a prompt through an external LLM API provider.
+# external_llm.sh - Route a prompt through an external LLM API provider.
 # Usage: ./external_llm.sh <provider> <prompt_file> [model_override]
 #   provider: grok | anthropic | openai
 #   prompt_file: path to file containing the prompt text
@@ -11,12 +11,25 @@
 
 set -euo pipefail
 
+# Whitelist allowed provider values
+case "${1:-}" in
+    grok|anthropic|openai) ;;
+    *) echo "Error: unknown provider '${1:-}'. Supported: grok, anthropic, openai" >&2; exit 1 ;;
+esac
+
 PROVIDER="${1:-}"
 PROMPT_FILE="${2:-}"
 MODEL_OVERRIDE="${3:-}"
 
-if [[ -z "$PROVIDER" || -z "$PROMPT_FILE" ]]; then
+if [[ -z "$PROMPT_FILE" ]]; then
     echo "Usage: $0 <provider> <prompt_file> [model_override]" >&2
+    exit 1
+fi
+
+# Canonicalize prompt file path and verify it is within the workspace directory
+REAL_PROMPT_FILE=$(realpath --relative-to="$HOME/.openclaw/workspace" "$PROMPT_FILE" 2>/dev/null || echo "")
+if [[ -z "$REAL_PROMPT_FILE" || "$REAL_PROMPT_FILE" == ..* ]]; then
+    echo "Error: prompt file must be within $HOME/.openclaw/workspace/" >&2
     exit 1
 fi
 
@@ -70,7 +83,14 @@ if [[ -z "$API_KEY_ENV" ]]; then
     exit 1
 fi
 
-API_KEY="${!API_KEY_ENV:-}"
+# Whitelist allowed API key env var names to prevent reading arbitrary environment variables
+case "$API_KEY_ENV" in
+    GROK_API_KEY|ANTHROPIC_API_KEY|OPENAI_API_KEY) ;;
+    *) echo "Error: invalid api_key_env '$API_KEY_ENV'. Must be one of: GROK_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY" >&2; exit 1 ;;
+esac
+
+# Read the actual API key from environment
+eval "API_KEY=\"\${$API_KEY_ENV:-}\""
 if [[ -z "$API_KEY" ]]; then
     echo "Error: API key not found. Set environment variable: $API_KEY_ENV" >&2
     exit 1
@@ -112,6 +132,7 @@ PROMPT=$(cat "$PROMPT_FILE")
 case "$PROVIDER" in
     grok)
         # xAI Grok API (https://docs.x.ai/docs/overview)
+        PROMPT_ENCODED=$(echo "$PROMPT" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
         RESPONSE=$(curl -s -X POST "https://api.x.ai/v1/chat/completions" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer $API_KEY" \
@@ -119,7 +140,7 @@ case "$PROVIDER" in
                 \"model\": \"$MODEL\",
                 \"messages\": [
                     {\"role\": \"system\", \"content\": \"You are a security analysis assistant. Provide thorough, evidence-based findings.\"},
-                    {\"role\": \"user\", \"content\": \"$PROMPT\"}
+                    {\"role\": \"user\", \"content\": $PROMPT_ENCODED}
                 ],
                 \"max_tokens\": 8192,
                 \"temperature\": 0.1
@@ -149,6 +170,7 @@ case "$PROVIDER" in
 
     openai)
         # OpenAI API (https://platform.openai.com/docs/api-reference/chat/create)
+        PROMPT_ENCODED=$(echo "$PROMPT" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
         RESPONSE=$(curl -s -X POST "https://api.openai.com/v1/chat/completions" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer $API_KEY" \
@@ -156,7 +178,7 @@ case "$PROVIDER" in
                 \"model\": \"$MODEL\",
                 \"messages\": [
                     {\"role\": \"system\", \"content\": \"You are a security analysis assistant. Provide thorough, evidence-based findings.\"},
-                    {\"role\": \"user\", \"content\": \"$PROMPT\"}
+                    {\"role\": \"user\", \"content\": $PROMPT_ENCODED}
                 ],
                 \"max_tokens\": 8192,
                 \"temperature\": 0.1
