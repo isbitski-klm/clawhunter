@@ -23,9 +23,18 @@ When invoked with any of these patterns:
 
 ## Backend Configuration
 
-ClawHunter runs by default using whatever LLM OpenClaw is configured with (local or remote). You can optionally route specific phases through external API providers for stronger reasoning.
+ClawHunter can route each phase through one of two classes of LLM providers. **The class matters: it determines where the code under analysis flows, which is a data-handling and risk decision, not just a capability choice.**
 
-### Config File: `~/.openclaw/workspace/config/clawhunter.json`
+### Two classes of providers
+
+| Class | Examples | Data flow | Auth | Typical use |
+|-------|----------|-----------|------|-------------|
+| **Local / on-prem** | `dsv4` (DeepSeek-V4-Flash on vLLM), or any self-hosted OpenAI-compatible endpoint | Prompt + code stay inside your infrastructure | None (keyless; the network boundary is the auth) | Code that is proprietary, under NDA, subject to regulatory review, or simply should not leave your network |
+| **External / cloud** | `grok` (xAI), `anthropic` (Anthropic), `openai` (OpenAI) | Prompt + code **leave your infrastructure** to the vendor's servers | API key in an environment variable | Stronger reasoning for public, open-source, or code you're comfortable sending to a third party |
+
+**Decision rule:** If the code under analysis is anything other than public open-source you'd freely share, default to a **local provider**. Routing to a cloud provider is an explicit choice that sends the full source text (including any secrets, credentials, or business logic in the scanned files) to a third-party API.
+
+### Config file: `~/.openclaw/workspace/config/clawhunter.json`
 
 ```json
 {
@@ -46,45 +55,80 @@ ClawHunter runs by default using whatever LLM OpenClaw is configured with (local
       "enabled": false,
       "api_key_env": "OPENAI_API_KEY",
       "model": "o3"
+    },
+    "dsv4": {
+      "base_url": "http://127.0.0.1:<TUNNEL_PORT>",
+      "model": "deepseek-v4-flash"
     }
   }
 }
 ```
 
-### How It Works
+Notes:
+- `dsv4` is the **local** provider. It has no `enabled` flag and no `api_key_env` — it's keyless, and `base_url` is the only required field. The `enabled` flag is intentionally absent for local providers because "disabling" a local endpoint means the endpoint is down, not that you opted out.
+- Cloud providers (`grok`, `anthropic`, `openai`) require `enabled: true` **and** the key in the named environment variable. Missing either → the script fails with a clear error before any data leaves the machine.
+
+### How it works
 
 | Setting | Behavior |
 |---------|----------|
-| `default_backend: "local"` (default) | All phases run natively through OpenClaw's current model |
-| `phase2_model: "grok"` | Phase 2 (Hunt + Falsification) routes to the grok provider; Phases 1 & 3 stay local |
+| `default_backend: "local"` (default) | All phases run natively through OpenClaw's current model (whatever that is — local or cloud) |
+| `phase2_model: "dsv4"` | Phase 2 (Hunt + Falsification + Fix) routes to the **local** inference endpoint; Phases 1 & 3 stay local |
+| `phase2_model: "grok"` | Phase 2 (Hunt + Falsification + Fix) routes to the **xAI cloud** API; Phases 1 & 3 stay local |
 | `phase2_model: null` | Same as `"local"` — everything runs natively |
 
-**Why only Phase 2?** Phase 1 (Recon) is mostly grep/glob/read — cheap and fast. Phase 3 (Report) is structured output generation with low reasoning load. Phase 2 is where the heavy lifting happens: holding complex data-flow chains in context while actively trying to disprove findings. That's where a stronger model genuinely pays for itself.
+**Why only Phase 2?** Phase 1 (Recon) is mostly grep/glob/read — cheap and fast. Phase 3 (Report) is structured output formatting with low reasoning load — it lays out what Phase 2 already determined. Phase 2 is where the heavy lifting happens: holding complex data-flow chains in context while actively trying to disprove findings **and** reasoning through the correct fix (eliminating the vulnerability class, not just patching the PoC). That's where a stronger model genuinely pays for itself — and that's also where the data-flow risk is highest, because Phase 2 sends the most context out of the door.
 
-### CLI Flag Override
+### CLI flag override
 
 Use `--model` to override config for a single run:
-- `--clawhunter --model grok` — route Phase 2 through Grok API
-- `--clawhunter --model opus` — route Phase 2 through Anthropic Opus
-- `--clawhunter --model local` — force local (overrides config)
+- `--clawhunter --model dsv4` — route Phase 2 through the **local** inference endpoint (recommended default; code stays in your network)
+- `--clawhunter --model grok` — route Phase 2 through the **xAI cloud** API (code leaves your network)
+- `--clawhunter --model opus` — route Phase 2 through **Anthropic cloud** (code leaves your network)
+- `--clawhunter --model local` — force the current OpenClaw model for all phases
 
-### Provider Setup
+### Provider setup
 
-**Grok:** Set `GROK_API_KEY` in your environment. The provider uses the xAI Grok API endpoint.
+#### Local providers (recommended default for non-public code)
 
-**Anthropic:** Set `ANTHROPIC_API_KEY`. Supports Opus and Sonnet models.
+**`dsv4` — DeepSeek-V4-Flash on a self-hosted inference cluster.**
 
-**OpenAI:** Set `OPENAI_API_KEY`. Supports o3 and other reasoning models.
+Any OpenAI-compatible endpoint works here. The default example is DeepSeek-V4-Flash served by vLLM on a small local GPU cluster, but the same config shape works with Ollama, llama.cpp, or any other local serving stack.
 
-When a provider is enabled but its API key is missing, ClawHunter falls back to local with a warning — it never fails hard.
+The endpoint lives on a private network not routable from the host running ClawHunter. The call path is an **SSH local-forward tunnel** to a local port. Set up the tunnel using your own SSH config and infrastructure details — they are **local secrets** and never appear in this document, the scripts, or any committed file.
 
-### How External Routing Works
+```bash
+# Example shape only. Replace <USER>, <HEAD_NODE>, <LOCAL_PORT>, <REMOTE_PORT>
+# with your actual values. These belong in your local SSH config / shell profile,
+# not in any file that gets committed.
+ssh -f -N -L <LOCAL_PORT>:127.0.0.1:<REMOTE_PORT> <USER>@<HEAD_NODE>
+```
 
-When Phase 2 needs external inference:
-1. The main agent writes the hunt + falsification prompt to a temp file (`/tmp/clawhunter_phase2_prompt.md`)
-2. Runs `~/.openclaw/workspace/skills/clawhunter/scripts/external_llm.sh <provider> /tmp/clawhunter_phase2_prompt.md [model]`
-3. Reads the response back and continues the analysis workflow
-4. If the external call fails (network error, rate limit), falls back to local with a note
+Verify: `curl -s <base_url>/v1/models` should list the model. Then `--model dsv4` (or `phase2_model: "dsv4"`) works — no API key, no egress cost, no rate limit (it's your hardware).
+
+**`base_url`, tunnel ports, and SSH hosts are local secrets.** They belong in `config/clawhunter.json` (gitignored, local only) or environment variables — never in the skill document, scripts, or committed code.
+
+#### External / cloud providers (code leaves your infrastructure)
+
+| Provider | API key env var | Vendor |
+|----------|----------------|--------|
+| `grok` | `GROK_API_KEY` | xAI |
+| `anthropic` | `ANTHROPIC_API_KEY` | Anthropic (Opus, Sonnet) |
+| `openai` | `OPENAI_API_KEY` | OpenAI (o3, others) |
+
+**Before enabling a cloud provider, confirm you're comfortable sending the scanned code (including any embedded secrets, config files, or business logic) to that vendor's servers.** For proprietary, NDA-covered, or regulated code, prefer a local provider.
+
+When a cloud provider is enabled but its API key is missing, ClawHunter falls back to local with a warning — it never fails hard, and it never sends partial data to the vendor.
+
+### How provider routing works
+
+When Phase 2 is routed to a non-default provider:
+1. The main agent writes the hunt + falsification prompt to a file **inside the workspace** (the script rejects paths outside `$HOME/.openclaw/workspace/`). Use `~/.openclaw/workspace/tmp/clawhunter_phase2_prompt.md`.
+2. Runs `~/.openclaw/workspace/skills/clawhunter/scripts/external_llm.sh <provider> ~/.openclaw/workspace/tmp/clawhunter_phase2_prompt.md [model]`.
+   - For **local** providers: the prompt goes over the private network / tunnel. Nothing leaves your infrastructure.
+   - For **cloud** providers: the prompt is POSTed to the vendor's API. The full prompt text (which includes the code under analysis) crosses the wire.
+3. Reads the response back and continues the analysis workflow.
+4. If the call fails (network error, rate limit, missing key), falls back to the local model with a note.
 
 The script handles all provider-specific API formatting (headers, auth, message structure). You just enable the provider in config and point Phase 2 at it.
 
@@ -203,7 +247,7 @@ Return only a one-line confirmation. Do not include analysis in your response.
 
 After sub-agent completes, verify the recon file exists. Read ONLY the partition table and input inventory for dispatch — not the full analysis.
 
-### Phase 2: Hunt + Falsification (Main Agent)
+### Phase 2: Hunt + Falsification + Fix (Main Agent)
 
 For each entry point from the input inventory, trace forward to dangerous sinks using the Investigation Discipline above. For each candidate vulnerability found, run the **Falsification Engine**:
 

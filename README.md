@@ -46,7 +46,7 @@ Maps the complete attack surface before looking for specific vulnerabilities. A 
 
 This phase is mostly grep/glob/read operations. It's cheap, fast, and model-agnostic.
 
-### Phase 2: Hunt + Falsification (Main Agent) ⭐
+### Phase 2: Hunt + Falsification + Fix (Main Agent) ⭐
 
 For each entry point identified in Phase 1, the main agent traces forward through data flows to dangerous sinks using a structured investigation discipline:
 
@@ -59,7 +59,9 @@ For each entry point identified in Phase 1, the main agent traces forward throug
 
 Then runs the **Falsification Engine**: it actively tries to disprove each candidate finding by checking for input validation, auth checks, scope enforcement, output encoding, and security controls. Only findings that survive falsification are reported.
 
-**This is where a stronger model matters most.** Phase 2 requires holding complex data-flow chains in context while actively trying to disprove them. This is the kind of deep reasoning where frontier models (Opus, Grok, o3) outperform smaller ones. This is why ClawHunter supports offloading Phase 2 to external LLM APIs.
+For each surviving finding, Phase 2 also **proposes the fix** — reasoning through which validation is missing and why the architecture allows it, then producing a targeted patch that eliminates the vulnerability class (not just blocks the specific PoC payload). Fix generation is inference-heavy: it requires understanding the intent of the surrounding code, the threat model, and the correct remediation pattern for the vulnerability class. It's part of Phase 2 because that's where the deep reasoning is already happening, and because a model that can falsify a finding is the same model that can fix it correctly.
+
+**This is where a stronger model matters most.** Phase 2 requires holding complex data-flow chains in context while actively trying to disprove them **and** reasoning through the correct fix. This is the kind of deep reasoning where frontier models (Opus, Grok, o3) or a large local model outperform smaller ones. This is why ClawHunter supports offloading Phase 2 to a local or cloud LLM.
 
 ### Phase 3: Report Findings
 
@@ -67,8 +69,10 @@ For each verified vulnerability, produces a structured report with:
 - Attack path (entry point → data flow → sink)
 - Exploitability evidence (PoC or static trace)
 - Structural flaw explanation
-- Proposed fix with diff
+- Proposed fix with diff (generated in Phase 2)
 - Impact assessment
+
+Phase 3 is formatting and presentation: it lays out what Phase 2 already determined. It's cheap, model-agnostic, and runs locally.
 
 ## Quick Start
 
@@ -102,16 +106,24 @@ ClawHunter runs by default using whatever LLM OpenClaw is configured with. No ex
 
 There are cases where a stronger model genuinely helps:
 
-| Scenario | Why external helps |
-|----------|-------------------|
+| Scenario | Why a stronger model helps |
+|----------|---------------------------|
 | Complex microservices with deep call chains | Stronger models hold longer data-flow traces without losing context |
 | Unfamiliar frameworks/stacks | Better at recognizing non-obvious sink patterns and framework-specific input parsing |
 | High-stakes audits (pre-release, compliance) | Fewer false negatives on edge cases; better falsification reasoning |
 | Large codebases with many entry points | More reliable at exhaustively tracing ALL paths rather than stopping early |
+| Complex remediation | Better at reasoning through the correct fix that eliminates the vulnerability class, not just patching the PoC |
 
 **What you don't get from a stronger model:** Better grep/glob/read. Phase 1 and 3 are tool operations, not reasoning tasks. They work identically regardless of the LLM.
 
-## External API Configuration
+> **Data-flow note:** Whether you route Phase 2 to a local or a cloud provider, the prompt text (which includes the code under analysis) is sent to that endpoint. A local provider keeps it inside your network; a cloud provider sends it to the vendor's servers. Choose based on the sensitivity of the code, not just the capability of the model.
+
+## Provider Configuration
+
+Providers come in two classes with different data-flow implications (see the **Two classes of providers** table in `SKILL.md`):
+
+- **Local / on-prem** (e.g., `dsv4`): keyless, code stays in your network
+- **External / cloud** (e.g., `grok`, `anthropic`, `openai`): API-key auth, code leaves your network
 
 ### Config File: `~/.openclaw/workspace/config/clawhunter.json`
 
@@ -134,29 +146,39 @@ There are cases where a stronger model genuinely helps:
       "enabled": false,
       "api_key_env": "OPENAI_API_KEY",
       "model": "o3"
+    },
+    "dsv4": {
+      "base_url": "http://127.0.0.1:<TUNNEL_PORT>",
+      "model": "deepseek-v4-flash"
     }
   }
 }
 ```
+
+`dsv4` is the local provider: no `enabled` flag, no `api_key_env`. `base_url` is a local secret and must come from this config file (or an environment variable), never from committed code.
 
 ### How Routing Works
 
 | Setting | Behavior |
 |---------|----------|
 | `phase2_model: null` (default) | All phases run natively through OpenClaw's current model |
-| `phase2_model: "grok"` | Phase 2 routes to the Grok API; Phases 1 & 3 stay local |
+| `phase2_model: "dsv4"` | Phase 2 routes to the **local** inference endpoint; Phases 1 & 3 stay local |
+| `phase2_model: "grok"` | Phase 2 routes to the **xAI cloud** API; Phases 1 & 3 stay local |
 
 **Why only Phase 2?** As noted above: it is the only phase where a stronger LLM provides meaningful ROI.
 
 ### One-Time Override with `--model` Flag
 
 ```
-/clawhunter --model grok    # Route Phase 2 through Grok for this run only
-/clawhunter --model opus    # Route Phase 2 through Anthropic Opus
-/clawhunter --model local   # Force local (overrides config)
+/clawhunter --model dsv4    # Route Phase 2 through local inference (code stays in your network)
+/clawhunter --model grok    # Route Phase 2 through xAI cloud (code leaves your network)
+/clawhunter --model opus    # Route Phase 2 through Anthropic cloud (code leaves your network)
+/clawhunter --model local   # Force the current OpenClaw model for all phases
 ```
 
 ### Setting Up a Provider
+
+**Cloud provider (grok / anthropic / openai):**
 
 1. Set the API key in your environment:
    ```bash
@@ -167,7 +189,7 @@ There are cases where a stronger model genuinely helps:
    export OPENAI_API_KEY="sk-proj-..."
    ```
 
-2. Enable the provider in `clawhunt.json`:
+2. Enable the provider in `clawhunter.json`:
    ```json
    "grok": { "enabled": true, ... }
    ```
@@ -176,6 +198,20 @@ There are cases where a stronger model genuinely helps:
    ```json
    "phase2_model": "grok"
    ```
+
+**Local provider (dsv4 or any self-hosted OpenAI-compatible endpoint):**
+
+1. Point `base_url` at your endpoint in `clawhunter.json` (use an SSH tunnel if the endpoint is on a private network):
+   ```json
+   "dsv4": { "base_url": "http://127.0.0.1:<TUNNEL_PORT>", "model": "deepseek-v4-flash" }
+   ```
+
+2. Set `phase2_model` to route Phase 2:
+   ```json
+   "phase2_model": "dsv4"
+   ```
+
+No API key needed. Code stays in your network.
 
 When a provider is enabled but its API key is missing, ClawHunter falls back to local with a warning. It never fails hard.
 
