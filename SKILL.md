@@ -168,6 +168,16 @@ For each input from the inventory, follow this tool-first order when tracing for
 
 ## Workflow: Hunt → Report
 
+### Step -1: Sync Skill Suite (before any scan)
+
+Before starting a scan, sync the local skill copies against their remotes so the scan always runs against the latest committed methodology:
+
+```bash
+bash ~/.openclaw/workspace/skills/sync.sh
+```
+
+This pulls any new commits in `clawhunter`, `grokhunt`, and any other skill repos that have a remote, and reports any that are diverged or ahead. If a sync fails (offline, diverged), proceed with the local version and note it in the report header.
+
 ### Step 0: Resolve Target & Mode
 
 **Target:** The current directory, unless invocation names a path. Confirm in one line.
