@@ -6,7 +6,12 @@
 #   LOCAL / ON-PREM providers (e.g., "dsv4")
 #     - Run against an OpenAI-compatible endpoint you operate yourself
 #       (typically vLLM, Ollama, llama.cpp, etc.) on a private network.
-#     - Keyless: no API key required; auth is the network boundary.
+#     - Keyless by default. Optionally keyed: set "api_key_env" on the local
+#       provider to the name of an env var holding a bearer token (for an
+#       endpoint or gateway that requires auth). The key is sent only as an
+#       Authorization header via a curl config on a file descriptor. It is not
+#       put on the command line, and the script does not print or log it
+#       (xtrace is suspended around key handling).
 #     - Prompt text and code under analysis do NOT leave your infrastructure.
 #     - base_url is a local secret and MUST come from config/clawhunter.json.
 #     - Endpoint may be on a segment not routable from this host; an SSH
@@ -87,7 +92,8 @@ print(val if isinstance(val, str) else json.dumps(val))
 }
 
 # ---- Provider gates ---------------------------------------------------------
-# LOCAL providers (dsv4) are keyless: no enabled flag, no API key.
+# LOCAL providers (dsv4) have no enabled flag. They are keyless unless
+# "api_key_env" is set in their config (see the local key gate below).
 # EXTERNAL providers require: enabled=true, an api_key_env name on the
 # whitelist, and a non-empty key in that environment variable.
 if [[ "$PROVIDER" != "dsv4" ]]; then
@@ -118,6 +124,38 @@ if [[ "$PROVIDER" != "dsv4" ]]; then
     fi
 fi
 
+# LOCAL provider optional key gate.
+# If "api_key_env" is set for the local provider, the key is required: a
+# missing or empty env var fails closed instead of sending an unauthenticated
+# request. Only env var names matching LOCAL_LLM_API_KEY or
+# LOCAL_LLM_<NAME>_API_KEY are accepted, so config cannot point this at an
+# arbitrary environment variable (including the cloud provider keys).
+# Suspend xtrace while the key is handled so `bash -x` does not echo it.
+# The prior xtrace state is restored after the local provider request.
+case "$-" in *x*) XTRACE_WAS_ON=1 ;; *) XTRACE_WAS_ON=0 ;; esac
+{ set +x; } 2>/dev/null
+LOCAL_API_KEY=""
+if [[ "$PROVIDER" == "dsv4" ]]; then
+    LOCAL_API_KEY_ENV=$(read_provider_config "api_key_env" || true)
+    if [[ -n "$LOCAL_API_KEY_ENV" ]]; then
+        if [[ ! "$LOCAL_API_KEY_ENV" =~ ^LOCAL_LLM_([A-Z0-9]+_)*API_KEY$ ]]; then
+            echo "Error: invalid api_key_env for '$PROVIDER'. Must be LOCAL_LLM_API_KEY or LOCAL_LLM_<NAME>_API_KEY" >&2
+            exit 1
+        fi
+        LOCAL_API_KEY="${!LOCAL_API_KEY_ENV:-}"
+        if [[ -z "$LOCAL_API_KEY" ]]; then
+            echo "Error: '$PROVIDER' is configured with a key but $LOCAL_API_KEY_ENV is not set" >&2
+            exit 1
+        fi
+        # Bearer token characters only (RFC 6750 b64token), so the value cannot
+        # break out of the curl config line it is written into.
+        if [[ ! "$LOCAL_API_KEY" =~ ^[A-Za-z0-9._~+/=-]+$ ]]; then
+            echo "Error: $LOCAL_API_KEY_ENV contains characters not allowed in a bearer token" >&2
+            exit 1
+        fi
+    fi
+fi
+if [[ "$PROVIDER" != "dsv4" && "$XTRACE_WAS_ON" == 1 ]]; then set -x; fi
 
 # Get model name (use override if provided, otherwise config default)
 MODEL=""
@@ -231,8 +269,69 @@ case "$PROVIDER" in
             echo "Error: no base_url configured for dsv4 in $CONFIG_FILE" >&2
             exit 1
         fi
+        # With a key set, base_url must be lowercase https:// or http:// with no
+        # '@', backslash or whitespace. A key over plain http is only sent to a
+        # loopback host (by IP, or exactly "localhost"), unless the config sets
+        # "allow_insecure_http": true (a JSON boolean), which prints a warning.
+        URL_CLASS=""
+        if [[ -n "$LOCAL_API_KEY" ]]; then
+            URL_CLASS=$(python3 - "$BASE_URL" <<'PY'
+import sys, ipaddress
+from urllib.parse import urlsplit
+u = sys.argv[1]
+if any(c in u for c in "\\@ \t\r\n"):
+    print("bad"); sys.exit()
+if u.startswith("https://"):
+    print("https"); sys.exit()
+if not u.startswith("http://"):
+    print("bad"); sys.exit()
+try:
+    h = urlsplit(u).hostname or ""
+except ValueError:
+    print("bad"); sys.exit()
+try:
+    lo = ipaddress.ip_address(h).is_loopback
+except ValueError:
+    lo = (h == "localhost")
+print("loopback" if lo else "insecure")
+PY
+)
+            case "$URL_CLASS" in
+                https|loopback) ;;
+                insecure)
+                    ALLOW_HTTP=$(python3 - "$CONFIG_FILE" "$PROVIDER" <<'PY'
+import json, sys
+with open(sys.argv[1]) as f:
+    cfg = json.load(f)
+p = cfg.get("providers", {}).get(sys.argv[2], {})
+print("yes" if isinstance(p, dict) and p.get("allow_insecure_http") is True else "no")
+PY
+)
+                    if [[ "$ALLOW_HTTP" != "yes" ]]; then
+                        echo "Error: refusing to send an API key over plain http to a non-loopback host. Use https, or set 'allow_insecure_http': true for '$PROVIDER'." >&2
+                        exit 1
+                    fi
+                    echo "Warning: sending API key over plain http (allow_insecure_http is set)" >&2
+                    ;;
+                *)
+                    echo "Error: with api_key_env set, base_url for '$PROVIDER' must start with lowercase https:// or http:// and contain no '@', backslash or whitespace" >&2
+                    exit 1
+                    ;;
+            esac
+        fi
+        # A loopback endpoint bypasses any proxy, so a plain-http proxy never
+        # sees the bearer header.
+        NOPROXY_ARGS=()
+        if [[ "$URL_CLASS" == "loopback" ]]; then
+            NOPROXY_ARGS=(--noproxy '*')
+        fi
+        # Auth header goes through a curl config read from a file descriptor
+        # (printf is a shell builtin), so the key never appears in argv. With
+        # no key the config is empty and no Authorization header is sent.
         PROMPT_ENCODED=$(echo "$PROMPT" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
         RESPONSE=$(curl -s -m 600 -X POST "$BASE_URL/v1/chat/completions" \
+            ${NOPROXY_ARGS[@]+"${NOPROXY_ARGS[@]}"} \
+            --config <(if [[ -n "$LOCAL_API_KEY" ]]; then printf 'header = "Authorization: Bearer %s"\n' "$LOCAL_API_KEY"; fi) \
             -H "Content-Type: application/json" \
             -d "{
                 \"model\": \"$MODEL\",
@@ -243,6 +342,7 @@ case "$PROVIDER" in
                 \"max_tokens\": 8192,
                 \"temperature\": 0.1
             }")
+        if [[ "$XTRACE_WAS_ON" == 1 ]]; then set -x; fi
         echo "$RESPONSE" | python3 -c "import json,sys; data=json.load(sys.stdin); print(data['choices'][0]['message']['content'])"
         ;;
 
