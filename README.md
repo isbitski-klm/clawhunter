@@ -155,7 +155,7 @@ Providers come in two classes with different data-flow implications (see the **T
 }
 ```
 
-`dsv4` is the local provider: no `enabled` flag, no `api_key_env`. `base_url` is a local secret and must come from this config file (or an environment variable), never from committed code.
+`dsv4` is the local provider: no `enabled` flag, and keyless unless you set the optional `api_key_env` (see Local provider setup below). `base_url` is a local secret and must come from this config file (or an environment variable), never from committed code.
 
 ### How Routing Works
 
@@ -211,7 +211,23 @@ Providers come in two classes with different data-flow implications (see the **T
    "phase2_model": "dsv4"
    ```
 
-No API key needed. Code stays in your network.
+No API key needed by default. Code stays in your network.
+
+**Optional key for a local endpoint.** If your local endpoint, or a gateway in front of it, requires a bearer token, add `api_key_env` to the local provider and export the key in that variable:
+
+```json
+"dsv4": { "base_url": "https://<YOUR_ENDPOINT>", "model": "<MODEL>", "api_key_env": "LOCAL_LLM_API_KEY" }
+```
+
+- Accepted variable names: `LOCAL_LLM_API_KEY` or `LOCAL_LLM_<NAME>_API_KEY`. Anything else is refused, so config cannot read an arbitrary environment variable.
+- When `api_key_env` is set the key is required. A missing or empty variable fails before any request is sent.
+- The key is sent only as an `Authorization: Bearer` header through a curl config on a file descriptor. It is not put on the command line, and the script does not print or log it. The script suspends `bash -x` tracing while it handles the key; other wrappers that trace or log environments can still expose it.
+- With a key set, `base_url` must start with lowercase `https://` or `http://` and contain no `@`, backslash, or whitespace. Anything else is refused.
+- Over plain `http://`, a key is only sent to a loopback host (a loopback IP such as `127.0.0.1` or `[::1]`, or exactly `localhost`). For any other host use `https://`, or set `"allow_insecure_http": true` (a JSON boolean, not the string `"true"`) if you accept that risk on a trusted network. The script prints a warning each time it does that.
+- Proxy environment variables apply. Over http, a proxy sees the key. With a key set, requests to a loopback host bypass proxies (`--noproxy '*'`); https through a proxy is tunneled.
+- Without `api_key_env`, the local provider stays keyless, as before.
+- Tests: `bash tests/test_local_provider_key.sh` (offline, uses a mock endpoint on 127.0.0.1).
+
 
 When a provider is enabled but its API key is missing, ClawHunter falls back to local with a warning. It never fails hard.
 

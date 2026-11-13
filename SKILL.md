@@ -29,7 +29,7 @@ ClawHunter can route each phase through one of two classes of LLM providers. **T
 
 | Class | Examples | Data flow | Auth | Typical use |
 |-------|----------|-----------|------|-------------|
-| **Local / on-prem** | `dsv4` (DeepSeek-V4-Flash on vLLM), or any self-hosted OpenAI-compatible endpoint | Prompt + code stay inside your infrastructure | None (keyless; the network boundary is the auth) | Code that is proprietary, under NDA, subject to regulatory review, or simply should not leave your network |
+| **Local / on-prem** | `dsv4` (DeepSeek-V4-Flash on vLLM), or any self-hosted OpenAI-compatible endpoint | Prompt + code stay inside your infrastructure | None by default (keyless); optional bearer key via `api_key_env` | Code that is proprietary, under NDA, subject to regulatory review, or simply should not leave your network |
 | **External / cloud** | `grok` (xAI), `anthropic` (Anthropic), `openai` (OpenAI) | Prompt + code **leave your infrastructure** to the vendor's servers | API key in an environment variable | Stronger reasoning for public, open-source, or code you're comfortable sending to a third party |
 
 **Decision rule:** If the code under analysis is anything other than public open-source you'd freely share, default to a **local provider**. Routing to a cloud provider is an explicit choice that sends the full source text (including any secrets, credentials, or business logic in the scanned files) to a third-party API.
@@ -65,7 +65,7 @@ ClawHunter can route each phase through one of two classes of LLM providers. **T
 ```
 
 Notes:
-- `dsv4` is the **local** provider. It has no `enabled` flag and no `api_key_env` — it's keyless, and `base_url` is the only required field. The `enabled` flag is intentionally absent for local providers because "disabling" a local endpoint means the endpoint is down, not that you opted out.
+- `dsv4` is the **local** provider. It has no `enabled` flag and is keyless by default, so `base_url` is the only required field. An optional `api_key_env` adds a bearer key for endpoints that require auth (see Local providers below). The `enabled` flag is intentionally absent for local providers because "disabling" a local endpoint means the endpoint is down, not that you opted out.
 - Cloud providers (`grok`, `anthropic`, `openai`) require `enabled: true` **and** the key in the named environment variable. Missing either → the script fails with a clear error before any data leaves the machine.
 
 ### How it works
@@ -105,6 +105,21 @@ ssh -f -N -L <LOCAL_PORT>:127.0.0.1:<REMOTE_PORT> <USER>@<HEAD_NODE>
 ```
 
 Verify: `curl -s <base_url>/v1/models` should list the model. Then `--model dsv4` (or `phase2_model: "dsv4"`) works — no API key, no egress cost, no rate limit (it's your hardware).
+
+**Optional key for a local endpoint.** If your local endpoint, or a gateway in front of it, requires a bearer token, add `api_key_env` to the local provider and export the key in that variable:
+
+```json
+"dsv4": { "base_url": "https://<YOUR_ENDPOINT>", "model": "<MODEL>", "api_key_env": "LOCAL_LLM_API_KEY" }
+```
+
+- Accepted variable names: `LOCAL_LLM_API_KEY` or `LOCAL_LLM_<NAME>_API_KEY`. Anything else is refused, so config cannot read an arbitrary environment variable.
+- When `api_key_env` is set the key is required. A missing or empty variable fails before any request is sent.
+- The key is sent only as an `Authorization: Bearer` header through a curl config on a file descriptor. It is not put on the command line, and the script does not print or log it. The script suspends `bash -x` tracing while it handles the key; other wrappers that trace or log environments can still expose it.
+- With a key set, `base_url` must start with lowercase `https://` or `http://` and contain no `@`, backslash, or whitespace. Anything else is refused.
+- Over plain `http://`, a key is only sent to a loopback host (a loopback IP such as `127.0.0.1` or `[::1]`, or exactly `localhost`). For any other host use `https://`, or set `"allow_insecure_http": true` (a JSON boolean, not the string `"true"`) if you accept that risk on a trusted network. The script prints a warning each time it does that.
+- Proxy environment variables apply. Over http, a proxy sees the key. With a key set, requests to a loopback host bypass proxies (`--noproxy '*'`); https through a proxy is tunneled.
+- Without `api_key_env`, the local provider stays keyless, as before.
+- Tests: `bash tests/test_local_provider_key.sh` (offline, uses a mock endpoint on 127.0.0.1).
 
 **`base_url`, tunnel ports, and SSH hosts are local secrets.** They belong in `config/clawhunter.json` (gitignored, local only) or environment variables — never in the skill document, scripts, or committed code.
 
